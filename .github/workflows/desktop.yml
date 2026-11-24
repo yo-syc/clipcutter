@@ -1,0 +1,117 @@
+# Builds the desktop installers (PyInstaller can't cross-compile, so one runner per OS),
+# smoke-tests each one, and on a version tag (v1.2.3) attaches them to a draft GitHub Release.
+name: Desktop app
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+  pull_request:
+    paths: ["packaging/**", ".github/workflows/desktop.yml", "src/clipcutter/system.py",
+            "src/clipcutter/desktop.py", "src/clipcutter/updater.py"]
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15          # Apple Silicon (Intel Macs: onnxruntime ships no Intel Mac wheels any more)
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Version from tag
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "CLIPCUTTER_VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_ENV"; fi
+      - name: Build .app + .dmg
+        run: packaging/build_mac.sh
+      - name: Smoke test (doctor + render a local file)
+        run: |
+          set -euo pipefail
+          MNT=$(hdiutil attach -nobrowse -readonly dist/ClipCutter-*.dmg | tail -1 | awk -F'\t' '{print $NF}')
+          cp -R "$MNT/ClipCutter.app" "$RUNNER_TEMP/"
+          hdiutil detach "$MNT"
+          CLI="$RUNNER_TEMP/ClipCutter.app/Contents/MacOS/clipcutter-cli"
+          "$CLI" doctor | tee doctor.txt
+          grep -q "✅ Hindi text shaping" doctor.txt
+          python3 packaging/smoke_test.py "$CLI"
+          # the double-click path: windowed app starts the web server
+          CLIPCUTTER_NO_BROWSER=1 "$RUNNER_TEMP/ClipCutter.app/Contents/MacOS/ClipCutter" &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8787/api/app && break; sleep 2; done
+          curl -sf http://127.0.0.1:8787/api/app | grep -q '"desktop": true'
+          kill %1 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClipCutter-mac-${{ matrix.arch }}
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Version from tag
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "CLIPCUTTER_VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_ENV"; fi
+      - name: Build app + installer
+        shell: pwsh
+        run: packaging\build_windows.ps1
+      - name: Smoke test (silent install, doctor, render a local file)
+        shell: pwsh
+        run: |
+          [Console]::OutputEncoding = [Text.Encoding]::UTF8
+          $setup = Get-ChildItem dist\ClipCutter-*-setup.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CURRENTUSER" -Wait
+          $cli = "$env:LOCALAPPDATA\Programs\ClipCutter\clipcutter-cli.exe"
+          if (-not (Test-Path $cli)) { throw "installer did not install $cli" }
+          & $cli doctor | Tee-Object -FilePath doctor.txt
+          if ($LASTEXITCODE -ne 0) { throw "doctor failed" }
+          if (-not (Select-String -Path doctor.txt -Pattern "✅ Hindi text shaping" -Encoding utf8)) { throw "Hindi text shaping (libraqm + fribidi) is not working" }
+          python packaging\smoke_test.py $cli
+          if ($LASTEXITCODE -ne 0) { throw "smoke test failed" }
+          # the double-click path: windowed app starts the web server
+          $env:CLIPCUTTER_NO_BROWSER = "1"
+          $p = Start-Process "$env:LOCALAPPDATA\Programs\ClipCutter\ClipCutter.exe" -PassThru
+          $ok = $false
+          foreach ($i in 1..60) {
+            try { $r = Invoke-RestMethod http://127.0.0.1:8787/api/app -TimeoutSec 2; if ($r.desktop) { $ok = $true; break } } catch {}
+            Start-Sleep 2
+          }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          if (-not $ok) { Get-Content "$env:APPDATA\ClipCutter\logs\clipcutter.log" -ErrorAction SilentlyContinue; throw "desktop app did not start the web server" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClipCutter-windows-x64
+          path: dist/*-setup.exe
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true               # check the files, then press "Publish release" on GitHub
+          files: artifacts/*
+          body: |
+            Download the file for your computer:
+            - **Mac with Apple chip (M1–M4):** `ClipCutter-…-mac-arm64.dmg`
+            - **Windows 10/11:** `ClipCutter-…-windows-x64-setup.exe`
+
+            First open shows a security warning because the app isn't code-signed yet.
+            See [docs/INSTALL.md](https://github.com/${{ github.repository }}/blob/main/docs/INSTALL.md).

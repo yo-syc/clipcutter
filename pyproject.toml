@@ -1,0 +1,25 @@
+[project]
+name = "clipcutter"
+version = "0.1.0"
+description = "Turn YouTube/Twitch/Kick videos and streams into viral 9:16 clips with hooks and Gen Z captions. Runs locally, free."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=2.10.0",
+    "fastapi>=0.165.0",
+    "faster-whisper>=1.2.1 ; platform_machine != 'arm64' or sys_platform != 'darwin'",
+    "mlx-whisper>=0.4.3 ; platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "numpy>=2.5.5",
+    "opencv-python-headless<5",
+    "pillow>=13.0.0",
+    "pyyaml>=6.0.3",
+    "uvicorn[standard]>=0.54.0",
+    "yt-dlp>=2026.10.26",
+]
+
+[project.scripts]
+clipcutter = "clipcutter:main"
+
+[build-system]
+requires = ["uv_build>=0.13.9,<0.14.0"]
+build-backend = "uv_build"

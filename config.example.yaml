@@ -1,0 +1,35 @@
+# Copy to config.yaml and change what you want. Anything left out uses the default.
+
+clips: 5            # clips per stream
+min_len: 15         # seconds (main part)
+max_len: 55
+style: genz         # genz | hype | clean
+layout: auto        # auto (finds the facecam -> split, else blur) | blur | crop | split
+# facecam: [0.72, 0.68, 0.26, 0.30]   # for split layout: x, y, width, height as fractions of the frame
+
+weights:            # what counts as a "moment"
+  chat: 0.40        # chat spam spikes
+  audio: 0.25       # screaming / explosions
+  speech: 0.20      # what the streamer says
+  visual: 0.15      # fast cuts / action
+
+# Faster but less accurate: mlx-community/whisper-base-mlx
+whisper_model: mlx-community/whisper-large-v3-turbo
+
+llm:
+  provider: auto            # auto | claude | ollama | templates
+  model: claude-opus-5-5    # cheaper option: claude-haiku-5-5
+  ollama_model: llama3.2
+
+hook:
+  enabled: true
+  seconds: 2.5      # length of the cold-open hook
+  zoom: 1.2         # punch-in on the hook
+  boom: true        # bass hit on the peak
+
+captions:
+  words_per_chunk: 3
+  size: 88
+  highlight: "#FFE600"
+
+header: true        # keep the hook text as a small header for the whole clip

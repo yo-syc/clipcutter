@@ -1,0 +1,5 @@
+# Automatic HTTPS for your domain (set DOMAIN in .env)
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:8000
+}

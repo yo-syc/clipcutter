@@ -1,0 +1,33 @@
+# One-server setup: Caddy (HTTPS) + website + worker(s), all sharing ./data
+# Start:  DOMAIN=clips.example.com docker compose up -d --build
+# More workers:  docker compose up -d --scale worker=3
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      - CLIPCUTTER_SECURE_COOKIES=1
+      - CLIPCUTTER_BUSINESS_NAME=${CLIPCUTTER_BUSINESS_NAME:-ClipCutter}
+      - CLIPCUTTER_EMAIL=${CLIPCUTTER_EMAIL:-}
+      - CLIPCUTTER_PHONE=${CLIPCUTTER_PHONE:-}
+      - CLIPCUTTER_ADDRESS=${CLIPCUTTER_ADDRESS:-}
+    volumes: ["./data:/data"]
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["clipcutter", "site-worker"]
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes: ["./data:/data"]
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [web]
+volumes:
+  caddy_data:

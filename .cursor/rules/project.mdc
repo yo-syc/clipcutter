@@ -1,0 +1,5 @@
+---
+description: ClipCutter project rules
+alwaysApply: true
+---
+Read AGENTS.md at the repo root before changing code. OS-specific code belongs in src/clipcutter/system.py only.

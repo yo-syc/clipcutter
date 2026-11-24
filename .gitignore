@@ -1,0 +1,17 @@
+.venv/
+.work/
+output/
+config.yaml
+creators.yaml
+__pycache__/
+*.pyc
+.env
+.DS_Store
+data/
+
+# desktop app builds
+/build/
+/dist/
+packaging/vendor/
+packaging/build/
+ai-settings.json

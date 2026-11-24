@@ -1,0 +1,9 @@
+.venv
+.work
+output
+data
+.git
+__pycache__
+*.pyc
+config.yaml
+creators.yaml

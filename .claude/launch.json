@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "clipcutter",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": [
+        "run",
+        "clipcutter",
+        "serve",
+        "--port",
+        "8787"
+      ],
+      "port": 8787
+    },
+    {
+      "name": "website",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": [
+        "run",
+        "clipcutter",
+        "site",
+        "--port",
+        "8000"
+      ],
+      "port": 8000
+    }
+  ]
+}
