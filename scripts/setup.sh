@@ -4,6 +4,7 @@
 # Safe to run again.
 
 set -euo pipefail
+
 cd "$(dirname "$0")/.."
 
 say() {
@@ -21,6 +22,10 @@ if [ -n "${TERMUX_VERSION:-}" ] || [[ "${PREFIX:-}" == *com.termux* ]]; then
     OS="Termux"
 fi
 
+# --------------------------------------------------
+# macOS
+# --------------------------------------------------
+
 if [ "$OS" = "Darwin" ]; then
 
     if ! have brew; then
@@ -34,6 +39,10 @@ if [ "$OS" = "Darwin" ]; then
         brew list "$pkg" >/dev/null 2>&1 || brew install "$pkg"
     done
 
+# --------------------------------------------------
+# Android Termux
+# --------------------------------------------------
+
 elif [ "$OS" = "Termux" ]; then
 
     say "Installing tools for Termux"
@@ -41,11 +50,23 @@ elif [ "$OS" = "Termux" ]; then
     pkg update -y
     pkg upgrade -y
 
-    pkg install -y python uv ffmpeg nodejs git libfribidi
+    pkg install -y python uv ffmpeg nodejs git curl
+
+    # FriBidi is optional
+    if pkg install -y fribidi; then
+        say "FriBidi installed"
+    else
+        say "FriBidi unavailable; skipping"
+    fi
+
+# --------------------------------------------------
+# Linux
+# --------------------------------------------------
 
 elif [ "$OS" = "Linux" ]; then
 
     if have apt-get; then
+
         say "Installing tools with apt"
 
         if have sudo; then
@@ -57,14 +78,33 @@ elif [ "$OS" = "Linux" ]; then
         $SUDO apt-get update -y
 
         $SUDO apt-get install -y \
-            ffmpeg nodejs git \
+            ffmpeg \
+            nodejs \
+            git \
+            curl \
             libfribidi0 \
             fonts-dejavu-core \
             fonts-noto-color-emoji \
             fonts-noto-core
 
+    elif have pacman; then
+
+        say "Installing tools with pacman"
+
+        if have sudo; then
+            sudo pacman -S --needed --noconfirm \
+                ffmpeg nodejs git curl fribidi \
+                ttf-dejavu noto-fonts noto-fonts-emoji
+        else
+            pacman -S --needed --noconfirm \
+                ffmpeg nodejs git curl fribidi \
+                ttf-dejavu noto-fonts noto-fonts-emoji
+        fi
+
     else
-        echo "Please install ffmpeg, nodejs, git, fribidi and fonts using your package manager."
+        echo "Unsupported Linux package manager."
+        echo "Install ffmpeg, nodejs, git, curl and uv manually."
+        exit 1
     fi
 
     if ! have uv; then
@@ -73,9 +113,17 @@ elif [ "$OS" = "Linux" ]; then
         export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
     fi
 
+else
+
+    echo "Unsupported operating system: $OS"
+    exit 1
+
 fi
 
-# Verify required commands
+# --------------------------------------------------
+# Verify tools
+# --------------------------------------------------
+
 say "Checking required tools"
 
 for tool in uv ffmpeg node; do
@@ -85,7 +133,10 @@ for tool in uv ffmpeg node; do
     fi
 done
 
+# --------------------------------------------------
 # Python dependencies
+# --------------------------------------------------
+
 say "Installing Python packages"
 
 if [ "$OS" = "Termux" ]; then
@@ -94,11 +145,22 @@ else
     uv sync
 fi
 
+# --------------------------------------------------
 # Diagnostics
-say "Checking everything"
+# --------------------------------------------------
+
+say "Checking ClipCutter"
 
 uv run clipcutter doctor || true
 
-printf "\nStart the app with:\n\n"
+# --------------------------------------------------
+# Finish
+# --------------------------------------------------
+
+printf "\n"
+say "Setup completed!"
+
+printf "\nStart ClipCutter with:\n\n"
 printf "    uv run clipcutter serve\n\n"
-printf "Then open http://localhost:8787\n"
+printf "Then open:\n\n"
+printf "    http://localhost:8787\n\n"
